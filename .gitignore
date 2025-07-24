@@ -1,0 +1,22 @@
+# Byte-compiled / optimized / C extensions
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment
+venv/
+.env
+
+# Artifacts
+*.pkl
+metrics.json
+pytest_report.txt
+*.sqlite
+mlruns/
+
+# IDE
+.vscode/
+.idea/
+
+# Json Files
+*.json
