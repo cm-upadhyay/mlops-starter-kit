@@ -1,0 +1,153 @@
+name: ML Deployment CI/CD
+
+on:
+  push:
+    branches:
+      - dev
+      - main
+  pull_request:
+    branches:
+      - dev
+      - main
+
+jobs:
+  build-and-test:
+    name: Build, Test & Train
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+
+      - name: Install Dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run Pytest and Train Model
+        env:
+          MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
+        run: pytest > pytest_report.txt
+
+      - name: Setup CML
+        uses: iterative/setup-cml@v1
+
+      - name: Create CML Report on PR
+        if: github.event_name == 'pull_request'
+        env:
+          REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "## Pytest Results" > report.md
+          echo "\`\`\`" >> report.md
+          cat pytest_report.txt >> report.md
+          echo "\`\`\`" >> report.md
+          cml comment create --publish report.md
+
+      - name: Upload Trained Model Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: model-artifacts
+          path: mlruns/
+          retention-days: 1
+
+  deploy-to-staging:
+    name: Deploy to Staging
+    needs: build-and-test
+    if: github.ref == 'refs/heads/dev' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Google Cloud Credentials
+        run: |
+          echo "${{ secrets.GCP_KEY_BASE64 }}" | base64 --decode > gcp_key.json
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$(pwd)/gcp_key.json" >> $GITHUB_ENV
+
+      - name: Authenticate and Configure Docker
+        run: |
+          gcloud auth activate-service-account --key-file=gcp_key.json
+          gcloud auth configure-docker ${{ vars.GCP_ARTIFACT_REGISTRY_LOCATION }}-docker.pkg.dev
+
+      - name: Download Model Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: model-artifacts
+
+      - name: Find and Prepare Model File
+        run: |
+          MODEL_PATH=$(find ./mlruns -path "*model.pkl" | head -n 1)
+          cp $MODEL_PATH ./model.pkl
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and Push Docker Image to Staging
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ vars.GCP_ARTIFACT_REGISTRY_LOCATION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ vars.GCP_ARTIFACT_REGISTRY_REPO }}/ml-api:staging
+
+      - name: Deploy to Staging GKE
+        run: |
+          gcloud container clusters get-credentials ${{ vars.GKE_STAGING_CLUSTER_NAME }} --location ${{ vars.GKE_CLUSTER_LOCATION }}
+          IMAGE_PATH="${{ vars.GCP_ARTIFACT_REGISTRY_LOCATION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ vars.GCP_ARTIFACT_REGISTRY_REPO }}/ml-api:staging"
+          sed -i "s|IMAGE_PLACEHOLDER|$IMAGE_PATH|g" k8s/staging/deployment.yaml
+          kubectl apply -f k8s/staging/deployment.yaml
+          kubectl apply -f k8s/base/service.yaml
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Google Cloud Credentials
+        run: |
+          echo "${{ secrets.GCP_KEY_BASE64 }}" | base64 --decode > gcp_key.json
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$(pwd)/gcp_key.json" >> $GITHUB_ENV
+
+      - name: Authenticate and Configure Docker
+        run: |
+          gcloud auth activate-service-account --key-file=gcp_key.json
+          gcloud auth configure-docker ${{ vars.GCP_ARTIFACT_REGISTRY_LOCATION }}-docker.pkg.dev
+
+      - name: Download LATEST Production Model from MLflow
+        env:
+          MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
+        run: |
+          pip install mlflow
+          python -c "
+          import mlflow
+          from mlflow.tracking import MlflowClient
+          client = MlflowClient()
+          latest_version = client.get_latest_versions('iris-classifier', stages=['None'])[0]
+          mlflow.artifacts.download_artifacts(
+              run_id=latest_version.run_id,
+              artifact_path='model/model.pkl',
+              dst_path='.'
+          )
+          "
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and Push Docker Image to Production
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ vars.GCP_ARTIFACT_REGISTRY_LOCATION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ vars.GCP_ARTIFACT_REGISTRY_REPO }}/ml-api:latest
+
+      - name: Deploy to Production GKE
+        run: |
+          gcloud container clusters get-credentials ${{ vars.GKE_PRODUCTION_CLUSTER_NAME }} --location ${{ vars.GKE_CLUSTER_LOCATION }}
+          IMAGE_PATH="${{ vars.GCP_ARTIFACT_REGISTRY_LOCATION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ vars.GCP_ARTIFACT_REGISTRY_REPO }}/ml-api:latest"
+          sed -i "s|IMAGE_PLACEHOLDER|$IMAGE_PATH|g" k8s/production/deployment.yaml
+          kubectl apply -f k8s/production/deployment.yaml
+          kubectl apply -f k8s/base/service.yaml
