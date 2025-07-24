@@ -104,6 +104,15 @@ jobs:
           sed -i "s|IMAGE_PLACEHOLDER|$IMAGE_PATH|g" k8s/staging/deployment.yaml
           kubectl apply -f k8s/staging/deployment.yaml
           kubectl apply -f k8s/base/service.yaml
+
+  deploy-to-production:
+    name: Deploy to Production
+    needs: build-and-test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: 'read'
+      id-token: 'write'
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -134,6 +143,7 @@ jobs:
               dst_path='.'
           )
           "
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -151,3 +161,4 @@ jobs:
           sed -i "s|IMAGE_PLACEHOLDER|$IMAGE_PATH|g" k8s/production/deployment.yaml
           kubectl apply -f k8s/production/deployment.yaml
           kubectl apply -f k8s/base/service.yaml
+
