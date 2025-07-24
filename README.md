@@ -1,0 +1,1 @@
+This is a complete MLOps starter kit for training, containerizing, and deploying machine learning models to a production environment on Google Cloud. It demonstrates a full CI/CD workflow using GitHub Actions, Docker, and GKE. The repository uses the Iris dataset as an example model for the end-to-end deployment pipeline.
