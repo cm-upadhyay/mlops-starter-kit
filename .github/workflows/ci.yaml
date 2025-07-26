@@ -93,6 +93,7 @@ jobs:
 
       - name: Deploy to Staging GKE
         run: |
+          sudo apt-get install google-cloud-sdk-gke-gcloud-auth-plugin
           gcloud container clusters get-credentials ${{ vars.GKE_STAGING_CLUSTER_NAME }} --location ${{ vars.GKE_CLUSTER_LOCATION }} --project ${{ secrets.GCP_PROJECT_ID }}
           IMAGE_PATH="${{ vars.GCP_ARTIFACT_REGISTRY_LOCATION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ vars.GCP_ARTIFACT_REGISTRY_REPO }}/ml-api:staging"
           sed -i "s|IMAGE_PLACEHOLDER|$IMAGE_PATH|g" k8s/staging/deployment.yaml
@@ -138,6 +139,7 @@ jobs:
 
       - name: Deploy to Production GKE
         run: |
+          sudo apt-get install google-cloud-sdk-gke-gcloud-auth-plugin
           gcloud container clusters get-credentials ${{ vars.GKE_PRODUCTION_CLUSTER_NAME }} --location ${{ vars.GKE_CLUSTER_LOCATION }} --project ${{ secrets.GCP_PROJECT_ID }}
           IMAGE_PATH="${{ vars.GCP_ARTIFACT_REGISTRY_LOCATION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ vars.GCP_ARTIFACT_REGISTRY_REPO }}/ml-api:latest"
           sed -i "s|IMAGE_PLACEHOLDER|$IMAGE_PATH|g" k8s/production/deployment.yaml
