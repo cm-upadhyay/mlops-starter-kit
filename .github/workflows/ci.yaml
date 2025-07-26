@@ -29,21 +29,22 @@ jobs:
       - name: Install Dependencies
         run: pip install -r requirements.txt
 
-      - name: Run Pytest and Train Model
+      - name: Run Pytest, Train Model, and Verify Artifacts
         env:
           MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
-        run: pytest > pytest_report.txt
-
-      # --- THIS IS THE NEW, CRITICAL STEP ---
-      - name: Verify Artifacts
         run: |
-          echo "Listing contents of mlruns directory to debug:"
-          ls -R mlruns
+          # Run the tests which will trigger the training script
+          pytest > pytest_report.txt
+          
+          # Add a debug step to list all files and directories
+          echo "Listing all files in the workspace after training:"
+          ls -R
+          
+          # Verify that the model artifact was created
           if ! find ./mlruns -path "*model.pkl" | read; then
             echo "Error: model.pkl not found inside mlruns directory after training."
             exit 1
           fi
-          echo "Success: model.pkl found."
 
       - name: Setup CML
         uses: iterative/setup-cml@v1
