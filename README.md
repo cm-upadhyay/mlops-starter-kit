@@ -40,27 +40,6 @@ The pipeline follows a multi-stage process to safely move code from development 
 5.  **Merge to `main`**: The merge triggers the final `push` event.
     -   **CD to Production**: The application is automatically deployed to the production GKE cluster.
 
-## Project Structure
-.
-├── .github
-│   └── workflows
-│       └── ci.yaml
-├── data
-│   └── iris.csv
-├── k8s
-│   ├── base
-│   │   └── service.yaml
-│   ├── production
-│   │   └── deployment.yaml
-│   └── staging
-│       └── deployment.yaml
-├── app.py
-├── Dockerfile
-├── README.md
-├── requirements.txt
-├── test_pipeline.py
-└── train.py
-
 ## Setup and Execution
 
 This project requires a one-time setup of the cloud infrastructure and repository configuration.
