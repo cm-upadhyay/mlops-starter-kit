@@ -7,6 +7,9 @@ from mlflow.tracking import MlflowClient
 
 @pytest.fixture(scope="module")
 def training_run():
+    """
+    Runs the main train.py script and yields the MLflow run object.
+    """
     tracking_uri = os.environ.get("MLFLOW_TRACKING_URI")
     if not tracking_uri:
         pytest.fail("MLFLOW_TRACKING_URI environment variable not set.")
@@ -26,6 +29,7 @@ def training_run():
 
 @pytest.fixture(scope="module")
 def raw_iris_data():
+    """Provides the raw IRIS dataset for data validation tests."""
     df = pd.read_csv(os.path.join('data', 'iris.csv'))
     return df
 
@@ -36,8 +40,10 @@ def test_data_has_expected_columns(raw_iris_data):
 def test_data_has_no_missing_values(raw_iris_data):
     assert not raw_iris_data.isnull().any().any()
 
-# --- THIS IS THE CORRECTED FUNCTION ---
 def test_model_accuracy_above_threshold(training_run):
+    """
+    Checks the accuracy metric logged in the MLflow run.
+    """
     # The fixture now only yields the run object, so we use it directly
     accuracy = training_run.data.metrics.get("accuracy")
     assert accuracy is not None, "Accuracy metric not found in MLflow run."
