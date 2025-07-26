@@ -66,15 +66,16 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup Google Cloud Credentials
-        run: |
-          echo "${{ secrets.GCP_KEY_BASE64 }}" | base64 --decode > gcp_key.json
-          echo "GOOGLE_APPLICATION_CREDENTIALS=$(pwd)/gcp_key.json" >> $GITHUB_ENV
+      - name: Authenticate to Google Cloud
+        uses: 'google-github-actions/auth@v2'
+        with:
+          credentials_json: '${{ secrets.GCP_CREDENTIALS }}'
 
-      - name: Authenticate and Configure Docker
-        run: |
-          gcloud auth activate-service-account --key-file=gcp_key.json --project=${{ secrets.GCP_PROJECT_ID }}
-          gcloud auth configure-docker ${{ vars.GCP_ARTIFACT_REGISTRY_LOCATION }}-docker.pkg.dev
+      - name: Set up Cloud SDK
+        uses: 'google-github-actions/setup-gcloud@v2'
+
+      - name: Configure Docker
+        run: gcloud auth configure-docker ${{ vars.GCP_ARTIFACT_REGISTRY_LOCATION }}-docker.pkg.dev
 
       - name: Download Model Artifacts
         uses: actions/download-artifact@v4
@@ -93,7 +94,6 @@ jobs:
 
       - name: Deploy to Staging GKE
         run: |
-          sudo apt-get install google-cloud-cli-gke-gcloud-auth-plugin
           gcloud container clusters get-credentials ${{ vars.GKE_STAGING_CLUSTER_NAME }} --location ${{ vars.GKE_CLUSTER_LOCATION }} --project ${{ secrets.GCP_PROJECT_ID }}
           IMAGE_PATH="${{ vars.GCP_ARTIFACT_REGISTRY_LOCATION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ vars.GCP_ARTIFACT_REGISTRY_REPO }}/ml-api:staging"
           sed -i "s|IMAGE_PLACEHOLDER|$IMAGE_PATH|g" k8s/staging/deployment.yaml
@@ -112,15 +112,16 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup Google Cloud Credentials
-        run: |
-          echo "${{ secrets.GCP_KEY_BASE64 }}" | base64 --decode > gcp_key.json
-          echo "GOOGLE_APPLICATION_CREDENTIALS=$(pwd)/gcp_key.json" >> $GITHUB_ENV
+      - name: Authenticate to Google Cloud
+        uses: 'google-github-actions/auth@v2'
+        with:
+          credentials_json: '${{ secrets.GCP_CREDENTIALS }}'
 
-      - name: Authenticate and Configure Docker
-        run: |
-          gcloud auth activate-service-account --key-file=gcp_key.json --project=${{ secrets.GCP_PROJECT_ID }}
-          gcloud auth configure-docker ${{ vars.GCP_ARTIFACT_REGISTRY_LOCATION }}-docker.pkg.dev
+      - name: Set up Cloud SDK
+        uses: 'google-github-actions/setup-gcloud@v2'
+        
+      - name: Configure Docker
+        run: gcloud auth configure-docker ${{ vars.GCP_ARTIFACT_REGISTRY_LOCATION }}-docker.pkg.dev
 
       - name: Download Model Artifacts
         uses: actions/download-artifact@v4
@@ -139,7 +140,6 @@ jobs:
 
       - name: Deploy to Production GKE
         run: |
-          sudo apt-get install google-cloud-cli-gke-gcloud-auth-plugin
           gcloud container clusters get-credentials ${{ vars.GKE_PRODUCTION_CLUSTER_NAME }} --location ${{ vars.GKE_CLUSTER_LOCATION }} --project ${{ secrets.GCP_PROJECT_ID }}
           IMAGE_PATH="${{ vars.GCP_ARTIFACT_REGISTRY_LOCATION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ vars.GCP_ARTIFACT_REGISTRY_REPO }}/ml-api:latest"
           sed -i "s|IMAGE_PLACEHOLDER|$IMAGE_PATH|g" k8s/production/deployment.yaml
