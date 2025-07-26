@@ -30,7 +30,7 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Run Pytest and Train Model
-        run: pytest > pytest_report.txt
+        run: pytest > pytest_report.txt || (cat pytest_report.txt && exit 1)
 
       - name: Setup CML
         uses: iterative/setup-cml@v1
