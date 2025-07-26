@@ -32,3 +32,10 @@ def test_model_accuracy_above_threshold(training_run_artifacts):
     accuracy = metrics.get("accuracy")
     assert accuracy is not None, "Accuracy not found in metrics.json."
     assert accuracy >= 0.80, f"Model accuracy {accuracy:.4f} is below the threshold of 0.80."
+
+def test_log_metrics(training_run_artifacts):
+    model, metrics = training_run_artifacts
+    print("\n--- Model Metrics ---")
+    print(json.dumps(metrics, indent=4))
+    print("---------------------")
+    assert True
