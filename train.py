@@ -25,7 +25,7 @@ def train_model():
 
     metrics = {"accuracy": accuracy}
 
-    # Save the model and metrics as local files
+    # Save the model and metrics locally
     joblib.dump(model, 'iris_model.pkl')
     with open('metrics.json', 'w') as f:
         json.dump(metrics, f)
