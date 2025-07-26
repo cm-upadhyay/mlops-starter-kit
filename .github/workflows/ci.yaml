@@ -29,22 +29,39 @@ jobs:
       - name: Install Dependencies
         run: pip install -r requirements.txt
 
-      - name: Run Pytest, Train Model, and Verify Artifacts
+      - name: Run Pytest and Train Model
         env:
           MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
         run: |
-          # Run the tests which will trigger the training script
+          # The pytest output, which contains the Run ID, is saved to a file
           pytest > pytest_report.txt
-          
-          # Add a debug step to list all files and directories
-          echo "Listing all files in the workspace after training:"
-          ls -R
-          
-          # Verify that the model artifact was created
-          if ! find ./mlruns -path "*model.pkl" | read; then
-            echo "Error: model.pkl not found inside mlruns directory after training."
+
+      - name: Download Model Artifact from MLflow
+        env:
+          MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
+        run: |
+          # Extract the Run ID from the pytest output
+          RUN_ID=$(grep "MLflow Run ID:" pytest_report.txt | awk '{print $4}')
+          if [ -z "$RUN_ID" ]; then
+            echo "Error: Could not find MLflow Run ID in pytest_report.txt"
             exit 1
           fi
+          echo "Found MLflow Run ID: $RUN_ID"
+          
+          # Create a directory for the artifact
+          mkdir -p model_artifact
+          
+          # Download the model using the Run ID
+          python -c "
+          import mlflow
+          mlflow.artifacts.download_artifacts(
+              run_id='$RUN_ID',
+              artifact_path='model/model.pkl',
+              dst_path='./model_artifact/'
+          )
+          "
+          # Rename the downloaded file to be consistent for the Dockerfile
+          mv ./model_artifact/model.pkl ./model_artifact/model.pkl
 
       - name: Setup CML
         uses: iterative/setup-cml@v1
@@ -60,12 +77,11 @@ jobs:
           echo "\`\`\`" >> report.md
           cml comment create --publish report.md
 
-      - name: Upload Trained Model Artifacts
+      - name: Upload Local Model Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: model-artifacts
-          path: mlruns/
-          retention-days: 1
+          name: model-artifact
+          path: model_artifact/
 
   deploy-to-staging:
     name: Deploy to Staging
@@ -89,15 +105,15 @@ jobs:
           gcloud auth activate-service-account --key-file=gcp_key.json
           gcloud auth configure-docker ${{ vars.GCP_ARTIFACT_REGISTRY_LOCATION }}-docker.pkg.dev
 
-      - name: Download Model Artifacts
+      - name: Download Model Artifact
         uses: actions/download-artifact@v4
         with:
-          name: model-artifacts
+          name: model-artifact
 
-      - name: Find and Prepare Model File
+      - name: Prepare Model File for Docker
         run: |
-          MODEL_PATH=$(find ./mlruns -path "*model.pkl" | head -n 1)
-          cp $MODEL_PATH ./model.pkl
+          # Copy the model from the downloaded artifact directory to the root
+          cp model_artifact/model.pkl .
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -139,22 +155,16 @@ jobs:
           gcloud auth activate-service-account --key-file=gcp_key.json
           gcloud auth configure-docker ${{ vars.GCP_ARTIFACT_REGISTRY_LOCATION }}-docker.pkg.dev
 
-      - name: Download LATEST Production Model from MLflow
-        env:
-          MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
+      - name: Download Model Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: model-artifact
+
+      - name: Prepare Model File for Docker
         run: |
-          pip install mlflow
-          python -c "
-          import mlflow
-          from mlflow.tracking import MlflowClient
-          client = MlflowClient()
-          latest_version = client.get_latest_versions('iris-classifier', stages=['None'])[0]
-          mlflow.artifacts.download_artifacts(
-              run_id=latest_version.run_id,
-              artifact_path='model/model.pkl',
-              dst_path='.'
-          )
-          "
+          # Copy the model from the downloaded artifact directory to the root
+          cp model_artifact/model.pkl .
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
