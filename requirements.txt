@@ -1,7 +1,6 @@
 scikit-learn
 pandas
+pytest
 joblib
 fastapi
 uvicorn
-pytest
-mlflow
