@@ -33,25 +33,20 @@ jobs:
         env:
           MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
         run: |
-          # The pytest output, which contains the Run ID, is saved to a file
-          pytest > pytest_report.txt
+          # This command will run pytest and, if it fails, it will print the error log before exiting.
+          pytest > pytest_report.txt || (cat pytest_report.txt && exit 1)
 
       - name: Download Model Artifact from MLflow
         env:
           MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
         run: |
-          # Extract the Run ID from the pytest output
           RUN_ID=$(grep "MLflow Run ID:" pytest_report.txt | awk '{print $4}')
           if [ -z "$RUN_ID" ]; then
-            echo "Error: Could not find MLflow Run ID in pytest_report.txt"
+            echo "Error: Could not find MLflow Run ID. The training script likely failed."
             exit 1
           fi
           echo "Found MLflow Run ID: $RUN_ID"
-          
-          # Create a directory for the artifact
           mkdir -p model_artifact
-          
-          # Download the model using the Run ID
           python -c "
           import mlflow
           mlflow.artifacts.download_artifacts(
@@ -60,7 +55,6 @@ jobs:
               dst_path='./model_artifact/'
           )
           "
-          # Rename the downloaded file to be consistent for the Dockerfile
           mv ./model_artifact/model.pkl ./model_artifact/model.pkl
 
       - name: Setup CML
