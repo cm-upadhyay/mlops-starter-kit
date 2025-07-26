@@ -6,7 +6,7 @@ import os
 
 app = FastAPI(title="ML Prediction API")
 
-MODEL_PATH = os.path.join(os.path.dirname(__file__), 'model.pkl')
+MODEL_PATH = 'iris_model.pkl'
 model = joblib.load(MODEL_PATH)
 
 class IrisRequest(BaseModel):
