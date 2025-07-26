@@ -40,19 +40,15 @@ jobs:
         env:
           REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Add the pytest output to the report
           echo "## Pytest Results" > report.md
           echo "\`\`\`" >> report.md
           cat pytest_report.txt >> report.md
           echo "\`\`\`" >> report.md
-
-          # Add the metrics from the JSON file to the report
           echo "" >> report.md
           echo "## Model Metrics" >> report.md
           echo "\`\`\`json" >> report.md
           cat metrics.json >> report.md
           echo "\`\`\`" >> report.md
-          
           cml comment create --publish report.md
 
       - name: Upload Model Artifacts
