@@ -27,7 +27,7 @@ def training_run():
     mlflow.set_tracking_uri(tracking_uri)
     
     # Run train.py as a separate process
-    result = subprocess.run(["python", "train.py"], capture_output=True, text=True)
+    result = subprocess.run(["python", "train.py"], text=True, check=True)
     assert result.returncode == 0, f"train.py failed with error:\n{result.stderr}"
 
     # Find the latest run in the experiment to test against
@@ -51,15 +51,7 @@ def test_data_has_no_missing_values(raw_iris_data):
 # --- Model Evaluation Test (adapted for MLflow) ---
 
 def test_model_accuracy_above_threshold(training_run):
-    """
-    Checks the accuracy metric logged in the MLflow run.
-    This is the correct way to test, using MLflow as the source of truth.
-    """
-    run_id = training_run.info.run_id
-    print(f"Testing against MLflow Run ID: {run_id}")
-    
-    accuracy = training_run.data.metrics.get("accuracy")
+    run, _ = training_run
+    accuracy = run.data.metrics.get("accuracy")
     assert accuracy is not None, "Accuracy metric not found in MLflow run."
-    
-    print(f"Found accuracy: {accuracy}")
     assert accuracy >= 0.80, f"Model accuracy {accuracy:.4f} is below the threshold of 0.80."
